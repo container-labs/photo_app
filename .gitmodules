@@ -1,0 +1,3 @@
+[submodule "flutter"]
+	path = flutter
+	url = git@github.com:container-labs/photo_app_23.git
