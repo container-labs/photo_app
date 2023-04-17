@@ -1,0 +1,15 @@
+version: '3'
+
+services:
+  auto_label:
+    build:
+      context: ./auto-label
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+  resize:
+    build:
+      context: ./resize
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
