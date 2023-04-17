@@ -1,22 +1,9 @@
-import exifr from 'exifr';
+import fs from 'fs';
+import getExif from './getExif.js';
 
-const images = ['/Users/wbeebe/Downloads/_test-photos/DSC05662.jpg', '/Users/wbeebe/Downloads/_test-photos/DSC01507.jpg'];
+const testDirectory = '/test-photos';
 
-for (let i = 0; i < images.length; i++) {
-  const tags = [];
-  exifr.parse(images[i], true)
-    .then((output) => {
-      const {
-        CreateDate,
-        DateTimeOriginal,
-        ISO,
-        FNumber,
-        ExposureTime,
-        ShutterSpeedValue,
-        subject,
-      } = output;
-
-      console.log('output ', output);
-      console.log('photo ', ISO, FNumber, ShutterSpeedValue / ExposureTime);
-    });
-}
+fs.readdirSync(testDirectory).forEach(async (fileName) => {
+  const imageData = await getExif(`${testDirectory}/${fileName}`);
+  console.log(imageData);
+});

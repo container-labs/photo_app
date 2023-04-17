@@ -1,15 +1,10 @@
 version: '3'
 
 services:
-  auto_label:
+  ingest:
     build:
-      context: ./auto-label
+      context: ./ingest-image
       dockerfile: Dockerfile
-    ports:
-      - "80:80"
-  resize:
-    build:
-      context: ./resize
-      dockerfile: Dockerfile
-    ports:
-      - "80:80"
+    command: yarn run simple
+    volumes:
+      - ./test-photos:/test-photos

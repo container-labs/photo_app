@@ -1,10 +1,10 @@
 import functions from '@google-cloud/functions-framework';
 import { Storage } from '@google-cloud/storage';
 import crypto from 'crypto';
-import exifr from 'exifr';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import * as path from 'path';
+import getExif from './getExif.js';
 
 const storage = new Storage();
 initializeApp();
@@ -25,57 +25,18 @@ functions.cloudEvent('ingestImage', async (cloudEvent) => {
   const { bucket } = cloudEvent.data;
   const { name } = cloudEvent.data;
   const file = storage.bucket(bucket).file(name);
-
-  console.log(`Analyzing ${file.name}.`);
-
   const tempLocalPath = `/tmp/${path.parse(file.name).base}`;
+
   // Download file from bucket.
-  try {
-    await file.download({ destination: tempLocalPath });
+  await file.download({ destination: tempLocalPath });
 
-    console.log(`Downloaded ${file.name} to ${tempLocalPath}.`);
-  } catch (err) {
-    throw new Error(`File download failed: ${err}`);
-  }
-  const tags = [];
-  const metadata = {};
-
-  await exifr.parse(tempLocalPath, true)
-    .then((output) => {
-      const {
-        CreateDate,
-        ModifyDate,
-        ISO,
-        FNumber,
-        RawFileName,
-        subject,
-      } = output;
-      console.log('output is ', output);
-      if (subject) {
-        if (Array.isArray(subject)) {
-          for (let i = 0; i < subject.length; i++) {
-            tags.push(subject[i]);
-          }
-        } else {
-          tags.push(subject);
-        }
-      }
-
-      // FlutterFlow has a problem deserializing the ISO as a String.....
-      tags.push(`ISO:${ISO}`);
-      tags.push(`fStop:${FNumber}`);
-      metadata.createDate = CreateDate;
-      metadata.modifyDate = ModifyDate;
-      metadata.rawFileName = RawFileName;
-      metadata.fStop = FNumber;
-    });
-
-  const captureFileName = metadata.rawFileName.split('.')[0];
-  const uniqueID = crypto.createHash('md5').update(captureFileName + metadata.createDate).digest('hex');
+  const imageData = await getExif(tempLocalPath);
+  console.log('imageData', imageData);
+  const captureFileName = imageData.rawFileName.split('.')[0];
+  const uniqueID = crypto.createHash('md5').update(captureFileName + imageData.createDate).digest('hex');
   const extension = path.parse(file.name).ext;
   const uniqueName = `${uniqueID}${extension}`;
   const publicURL = `https://storage.googleapis.com/${publicBucketName}/${uniqueName}`;
-  console.log('metadata', metadata);
 
   const uploadAndDelete = new Promise((resolve, reject) => {
     publicBucket.upload(tempLocalPath, {
@@ -101,9 +62,9 @@ functions.cloudEvent('ingestImage', async (cloudEvent) => {
   const photoData = {
     uniqueID,
     path: publicURL,
-    tags,
-    exposureDate: metadata.createDate,
-    editDate: metadata.modifyDate,
+    tags: imageData.tags,
+    exposureDate: imageData.createDate,
+    editDate: imageData.modifyDate,
   };
 
   // create a document in the firestore database
@@ -116,7 +77,7 @@ functions.cloudEvent('ingestImage', async (cloudEvent) => {
     ...existingData,
     ...photoData,
   };
-  mergedData.tags = [...existingData.tags, ...tags].filter(onlyUnique);
+  mergedData.tags = [...existingData.tags, ...photoData.tags].filter(onlyUnique);
   // console.log(mergedData);
   // console.log(tags);
 
